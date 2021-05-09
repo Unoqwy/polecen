@@ -76,7 +76,7 @@ async fn exec_polecen_command(
 ) -> CommandResult {
     match &args {
         PolecenCommandArgs::Perform(args) => {
-            let target: &Member = &args.target;
+            let PolecenCommandArgsPerform { target, .. } = args;
             message
                 .channel_id
                 .send_message(&ctx.http, |m| {
