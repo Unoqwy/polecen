@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Unoqwy <julien.qwy@gmail.com>"]
 edition = "2018"
 description = "Command arguments parser for Serenity"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Unoqwy/polecen"
 
 [dependencies]
 polecen-macros = { path = "../polecen-macros", optional = true }
