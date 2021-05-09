@@ -92,6 +92,6 @@ Example input:
 
 * `these are some arguments` => ["these", "are", "some", "arguments"]
 * `these are some "quoted arguments"` => ["these", "are", "some", "quoted arguments"]
-* `"of course, \"escaping\" works fine"` => ["of course, \"escaping\" works fine"]
+* `"of course, \"escaping\" works" fine` => ["of course, \\"escaping\\" works", "fine"]
 
 [serenity]: https://github.com/serenity-rs/serenity
