@@ -1,0 +1,13 @@
+unstable_features = true
+edition = "2018"
+
+newline_style = "Unix"
+use_small_heuristics = "Max"
+normalize_comments = true
+match_block_trailing_comma = true
+
+# Imports
+reorder_imports = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
+imports_layout = "HorizontalVertical"

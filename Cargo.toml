@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "polecen",
+    "polecen-macros",
+
+    "examples/basic",
+]
