@@ -4,4 +4,5 @@ members = [
     "polecen-macros",
 
     "examples/basic",
+    "examples/standard-framework",
 ]
