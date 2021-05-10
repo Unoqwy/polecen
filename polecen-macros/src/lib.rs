@@ -56,11 +56,11 @@ pub fn expand_command_here(tokens: StdTokenStream) -> StdTokenStream {
         #(#structs)*
 
           #[::polecen::async_trait]
-          impl ::polecen::prelude::CommandArguments for #main_struct {
+          impl ::polecen::command::CommandArguments for #main_struct {
               async fn read_arguments<'a, I>(
                   mut args: I,
-                  ctx: ::polecen::prelude::ArgumentParseContext<'a>,
-              ) -> Result<Self, ::polecen::prelude::CommandArgumentsReadError>
+                  ctx: ::polecen::arguments::parse::ArgumentParseContext<'a>,
+              ) -> Result<Self, ::polecen::command::CommandArgumentsReadError>
               where
                   I: Iterator<Item = &'a str> + Send
               {
@@ -128,7 +128,7 @@ fn generate_parser(
     ctx_ident: &Ident,
     args_ident: &Ident,
 ) -> TokenStream {
-    let err = quote!(::polecen::prelude::CommandArgumentsReadError);
+    let err = quote!(::polecen::command::CommandArgumentsReadError);
 
     let parent_name = parent_name!(prefix, position, input);
     match input {
@@ -180,8 +180,8 @@ fn generate_parser(
                 let inner_parse = quote! {
                     #ty::parse_argument(
                         &#ctx_ident,
-                        ::polecen::prelude::ArgumentParseRaw {
-                            value: ::polecen::JsonValue::String(arg.to_owned()),
+                        ::polecen::arguments::parse::ArgumentParseRaw {
+                            value: arg.to_owned(),
                         },
                     )
                     .await

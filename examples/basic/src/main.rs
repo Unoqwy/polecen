@@ -1,6 +1,7 @@
 use std::env;
+use std::str::FromStr;
 
-use polecen::prelude::{split_args, ArgumentType, CommandArguments, CommandArgumentsReadError};
+use polecen::arguments::prelude::*;
 use serenity::client::{Context, EventHandler};
 use serenity::model::channel::Message;
 use serenity::model::guild::Member;
@@ -39,11 +40,43 @@ impl EventHandler for Handler {
     }
 }
 
+#[derive(Clone)]
+enum Operator {
+    ADD,
+    SUBSTRACT,
+}
+
+impl Operator {
+    fn calc(&self, lhs: i32, rhs: i32) -> i32 {
+        match self {
+            Self::ADD => lhs + rhs,
+            Self::SUBSTRACT => lhs - rhs,
+        }
+    }
+}
+
+impl FromStr for Operator {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "+" | "plus" | "add" => Ok(Self::ADD),
+            "-" | "minus" | "substract" => Ok(Self::SUBSTRACT),
+            _ => Err(()),
+        }
+    }
+}
+
 polecen::expand_command_here!((PolecenCommandArgs) polecen => match {
     perform => {
         target#Member "Target member";
         action#String "Action to perform";
         reason#String [*] "Reason";
+    },
+    calc => {
+        lhs#i32 "Integer";
+        op#String "Operator";
+        rhs#i32 "Integer";
     },
     version | ver | "?" => {}
 });
@@ -111,6 +144,17 @@ async fn exec_polecen_command(
                     m
                 })
                 .await?;
+        },
+        PolecenCommandArgs::Calc(args) => {
+            let PolecenCommandArgsCalc { lhs, rhs, .. } = args;
+            if let Ok(op) = args.op.parse::<Operator>() {
+                message
+                    .channel_id
+                    .say(&ctx.http, format!(":white_check_mark: Result: `{}`", op.calc(*lhs, *rhs)))
+                    .await?;
+            } else {
+                message.channel_id.say(&ctx.http, "Unknown operator. Available: `+`, `-`.").await?;
+            }
         },
         PolecenCommandArgs::Version(_) => {
             message

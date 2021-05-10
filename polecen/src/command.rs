@@ -2,7 +2,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 
-use crate::arguments::{ArgumentParseContext, ArgumentParseError};
+use crate::arguments::parse::{ArgumentParseContext, ArgumentParseError};
 
 #[async_trait]
 pub trait CommandArguments
@@ -33,18 +33,3 @@ impl fmt::Display for CommandArgumentsReadError {
         Ok(())
     }
 }
-
-// #[derive(Clone, Debug)]
-// pub struct Command {
-//     pub name: String,
-//     pub description: Option<String>,
-//     pub values: Vec<CommandField>,
-// }
-//
-// #[derive(Clone, Debug)]
-// pub struct CommandField {
-//     pub name: String,
-//     pub description: Option<String>,
-//     pub required: bool,
-//     pub span: Option<u16>,
-// }

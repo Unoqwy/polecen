@@ -1,6 +1,6 @@
 [package]
 name = "polecen"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Unoqwy <julien.qwy@gmail.com>"]
 edition = "2018"
 description = "Command arguments parser for Serenity"
@@ -11,7 +11,6 @@ repository = "https://github.com/Unoqwy/polecen"
 polecen-macros = { path = "../polecen-macros", optional = true }
 
 serde = "1.0"
-serde_json = "1.0"
 
 fancy-regex = { version = "0.5", optional = true }
 lazy_static = { version = "1", optional = true }
@@ -26,9 +25,10 @@ features = ["client", "gateway", "model", "unstable_discord_api"]
 [features]
 default = ["serenity_rustls", "polecen_default"]
 
-polecen_default = ["macros", "patterns"]
+polecen_default = ["macros", "patterns", "default_parsers"]
 macros = ["polecen-macros"]
 patterns = ["fancy-regex", "lazy_static"]
+default_parsers = []
 
 # Serenity backend
 serenity_rustls = ["serenity/rustls_backend"]
