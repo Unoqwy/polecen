@@ -1,6 +1,6 @@
 # polecen
 
-Polecen is a command arguments parser for [Serenity][serenity].  
+Polecen is a command arguments parser for [serenity][].  
 
 ## Current state
 
@@ -13,6 +13,14 @@ Polecen is currently in very early stages. Almost everything is subject to a ref
 - [ ] Integration with Standard Framework
 - [ ] Usable errors
 - [ ] FromStr support?
+- [ ] Basic documentation
+
+### Planned features
+
+The following features are planned but no one knows when they will be implemented.  
+
+* Interactions support
+* CLI to manage interactions automatically according to expansion macros
 
 ## Macros example
 
