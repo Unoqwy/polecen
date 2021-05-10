@@ -6,6 +6,15 @@ Polecen is a command arguments parser for [Serenity][serenity].
 
 Polecen is currently in very early stages. Almost everything is subject to a refactor and/or breaking changes relatively soon.  
 
+### "Working state" roadmap
+
+- [x] Basic expansion
+- [x] Default parsers implementations
+- [ ] Integration with Standard Framework
+- [ ] Usable errors
+- [ ] Rust-powered arguments splitter
+- [ ] FromStr support?
+
 ## Macros example
 
 You can declare a command using the powerful expand macro:
