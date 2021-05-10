@@ -1,4 +1,4 @@
-#[cfg(feature = "default_parsers")]
+#[cfg(default_parsers)]
 pub use super::default;
 pub use super::parse::*;
 #[cfg(feature = "patterns")]
