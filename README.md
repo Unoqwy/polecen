@@ -12,7 +12,6 @@ Polecen is currently in very early stages. Almost everything is subject to a ref
 - [x] Default parsers implementations
 - [ ] Integration with Standard Framework
 - [ ] Usable errors
-- [ ] Rust-powered arguments splitter
 - [ ] FromStr support?
 
 ## Macros example
@@ -90,22 +89,5 @@ pub struct TestCommandArgsVersion {
 ```
 
 Upcoming improvements will most likely include not generating empty structures and using struct-like enums whenever possible.
-
-## Argument list parser
-
-Polecen provides an argument list parser to capture quoted arguments.  
-> This parser is currently powered by fancy-regex, but is intended to be rewritten in rust for performance and to know where parsing failed.
-
-Example usage:
-
-```rust
-let mut args = split_args(&s);
-```
-
-Example input:
-
-* `these are some arguments` => ["these", "are", "some", "arguments"]
-* `these are some "quoted arguments"` => ["these", "are", "some", "quoted arguments"]
-* `"of course, \"escaping\" works" fine` => ["of course, \\"escaping\\" works", "fine"]
 
 [serenity]: https://github.com/serenity-rs/serenity

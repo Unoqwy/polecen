@@ -86,8 +86,7 @@ async fn run_command(
     message: &Message,
     content: String,
 ) -> Result<(), CommandArgumentsReadError> {
-    let mut args = split_args(&content);
-
+    let mut args = content.split_whitespace();
     if let Some(command) = args.next() {
         match command {
             "polecen" => {
