@@ -11,6 +11,7 @@ Polecen is currently in very early stages. Almost everything is subject to a ref
 You can declare a command using the powerful expand macro:
 
 ```rust
+use polecen::arguments::prelude::*;
 use serenity::model::guild::Member;
 
 polecen::expand_command_here!((TestCommandArgs) test => match {
@@ -21,6 +22,10 @@ polecen::expand_command_here!((TestCommandArgs) test => match {
     version | ver | "?" => {}
 });
 ```
+
+Argument types must implement `ArgumentType`.  
+Note: The feature `default_parsers` provides default implementations of ArgumentType for many std types and serenity models.  
+For these parsers to be in scope, you must either use `polecen::arguments::prelude[::*]` or `polecen::arguments::default`.
 
 Once a command has been declared, you can read the arguments using `read_args`:
 
