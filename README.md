@@ -81,7 +81,7 @@ pub enum TestCommandArgs {
     Version,
 }
 
-impl serenity::prelude::CommandArguments for TestCommandArgs {
+impl polecen::command::CommandArguments for TestCommandArgs {
     /* implementation of read_arguments */
 }
 
