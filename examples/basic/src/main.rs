@@ -155,7 +155,7 @@ async fn exec_polecen_command(
                 message.channel_id.say(&ctx.http, "Unknown operator. Available: `+`, `-`.").await?;
             }
         },
-        PolecenCommandArgs::Version(_) => {
+        PolecenCommandArgs::Version => {
             message
                 .channel_id
                 .say(
