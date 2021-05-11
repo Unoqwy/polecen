@@ -62,7 +62,7 @@ match &args {
 
         /* do something with target and reason */
     },
-    TestCommandArgs::Version(_) => {
+    TestCommandArgs::Version => {
         /* do something */
     },
 }
@@ -72,13 +72,13 @@ Please check the [examples](./examples) directory for more examples.
 
 ### Generated code
 
-The example above would generate 3 structures:
+The example above would generate 2 structures:
 
 ```rust
 #[derive(Clone, Debug)]
 pub enum TestCommandArgs {
     Kick(TestCommandArgsKick),
-    Version(TestCommandArgsVersion),
+    Version,
 }
 
 impl serenity::prelude::CommandArguments for TestCommandArgs {
@@ -90,12 +90,8 @@ pub struct TestCommandArgsKick {
     pub target: Member,
     pub reason: Option<String>,
 }
-
-#[derive(Clone, Debug)]
-pub struct TestCommandArgsVersion {
-}
 ```
 
-Upcoming improvements will most likely include not generating empty structures and using struct-like enums whenever possible.
+Upcoming improvements will include implementing CommandArguments for all structures.
 
 [serenity]: https://github.com/serenity-rs/serenity
