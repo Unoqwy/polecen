@@ -10,7 +10,7 @@ Polecen is currently in very early stages. Almost everything is subject to a ref
 
 - [x] Basic expansion
 - [x] Default parsers implementations
-- [ ] Integration with Standard Framework
+- [x] Integration with Standard Framework
 - [ ] Usable errors
 - [ ] FromStr support?
 - [ ] Basic documentation
@@ -90,8 +90,10 @@ pub struct TestCommandArgsKick {
     pub target: Member,
     pub reason: Option<String>,
 }
-```
 
-Upcoming improvements will include implementing CommandArguments for all structures.
+impl polecen::command::CommandArguments for TestCommandArgsKick {
+    /* implementation of read_arguments */
+}
+```
 
 [serenity]: https://github.com/serenity-rs/serenity

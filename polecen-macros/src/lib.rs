@@ -1,25 +1,28 @@
-use convert_case::Case;
 use proc_macro::TokenStream as StdTokenStream;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{parse_macro_input, LitStr};
 
-use crate::input::{ArgumentInput, CommandExpandInput, CommandInput};
-use crate::utils::ConvertCase;
+use crate::input::{ArgumentInput, CommandInput};
 
 mod input;
 mod utils;
 
-macro_rules! parent_name {
-    ($prefix:ident, $depth:expr, $input:ident) => {
-        if $depth == 0 {
-            Ident::new(&$prefix.clone().unwrap_or("Args".to_owned()), Span::call_site())
-        } else if let Some(prefix) = &$prefix {
-            let ident = $input.command_name();
-            Ident::new(&format!("{}{}", prefix, ident.to_case(Case::Pascal)), ident.span())
-        } else {
-            $input.command_name().to_case(Case::Pascal)
-        }
+macro_rules! metavar {
+    ($ty:ty; $s:expr) => {
+        <$ty>::new($s, Span::call_site())
+    };
+    ($ty:ty; MERGE $lhs:expr, $rhs:expr) => {
+        <$ty>::new(&format!("{}{}", $lhs, $rhs), Span::call_site())
+    };
+}
+
+macro_rules! ident {
+    ($s:expr) => {
+        metavar!(Ident; $s);
+    };
+    (MERGE $lhs:expr, $rhs:expr) => {
+        metavar!(Ident; MERGE $lhs, $rhs);
     };
 }
 
@@ -32,133 +35,73 @@ macro_rules! arg_opt {
     };
 }
 
-macro_rules! ident {
-    ($s:expr) => {
-        Ident::new($s, Span::call_site())
-    };
-    (MERGE $lhs:expr, $rhs:expr) => {
-        Ident::new(&format!("{}{}", $lhs, $rhs), Span::call_site())
-    };
-}
-
+/// Generate argument structures and reader implementations in current scope.
+///
+/// FIXME: examples
 #[proc_macro]
 pub fn expand_command_here(tokens: StdTokenStream) -> StdTokenStream {
-    let input = parse_macro_input!(tokens as CommandExpandInput);
-    let prefix = input.prefix.map(|ident| ident.to_string());
+    let input = parse_macro_input!(tokens as CommandInput);
 
-    let command = input.command;
-    let structs = generate_structs(prefix.clone(), 0, &command);
+    let mut structs = Vec::new();
+    generate_arguments(&mut structs, &input, None, &ident!("ctx"), &ident!("args"));
     if structs.is_empty() {
         return StdTokenStream::new();
     }
 
-    let main_struct = parent_name!(prefix, 0, command);
-    let parser = generate_parser(prefix.clone(), 0, &command, &ident!("ctx"), &ident!("args"));
-
-    (quote! {
-        #(#structs)*
-
-        #[::polecen::async_trait]
-        impl ::polecen::command::CommandArguments for #main_struct {
-            async fn read_arguments<'a, I>(
-                mut args: I,
-                ctx: ::polecen::arguments::parse::ArgumentParseContext<'a>,
-            ) -> Result<Self, ::polecen::command::CommandArgumentsReadError>
-            where
-                I: Iterator<Item = &'a str> + Send
-            {
-                Ok(#parser)
-            }
-        }
-    })
-    .into()
+    (quote! { #(#structs)* }).into()
 }
 
-fn generate_structs(prefix: Option<String>, depth: u8, input: &CommandInput) -> Vec<TokenStream> {
-    let parent_name = parent_name!(prefix, depth, input);
-
-    let (mut structs, mut entries) = (Vec::new(), Vec::new());
-    let struct_type;
-    match input {
-        CommandInput::CommandParent { children, .. } => {
-            struct_type = quote! { enum };
-
-            for child in children {
-                let child_name = child.command_name().to_case(Case::Pascal);
-                if let CommandInput::Command { arguments, .. } = child {
-                    if arguments.is_empty() {
-                        entries.push(quote! { #child_name });
-                        continue;
-                    }
-                }
-
-                let child_args = ident!(MERGE parent_name, child_name);
-                entries.push(quote! { #child_name(#child_args) });
-                structs.extend(generate_structs(Some(parent_name.to_string()), depth + 1, child));
-            }
-        },
-        CommandInput::Command { arguments, .. } => {
-            struct_type = quote! { struct };
-
-            for argument in arguments {
-                let ArgumentInput { name, ty, .. } = &argument;
-                let required = arg_opt!(argument, required).is_none();
-                entries.push(if required {
-                    quote! { pub #name: #ty }
-                } else {
-                    quote! { pub #name: Option<#ty> }
-                });
-            }
-        },
-    }
-
-    structs.push(quote! {
-        #[derive(Clone, Debug)]
-        pub #struct_type #parent_name {
-            #(#entries),*
-        }
-    });
-    structs
-}
-
-// TODO: check if Derive macros could be used for this purpose
-// and whether converting to a derive macro wuold actually make sense
-
-fn generate_parser(
-    prefix: Option<String>,
-    mut position: u8,
+/// Generate argument structures and readers.
+/// Returns ident of top-level structure (input) name.
+///
+/// # Arguments
+///
+/// * `structs` - Output, structures and parser impls are wrriten to this vector
+/// * `input` - Command input
+/// * `prefix` - Name of the upper-level input, if None this is a top-level call
+/// * `ctx_ident` - Ident of the ctx variable in scope
+/// * `args_ident` - Ident of the args variable in scope
+pub(crate) fn generate_arguments(
+    structs: &mut Vec<TokenStream>,
     input: &CommandInput,
+    prefix: Option<String>,
     ctx_ident: &Ident,
     args_ident: &Ident,
-) -> TokenStream {
+) -> Ident {
     let err = quote!(::polecen::command::CommandArgumentsReadError);
 
-    let parent_name = parent_name!(prefix, position, input);
-    match input {
+    let parent_name = if let Some(prefix) = prefix {
+        ident!(MERGE prefix, input.struct_name())
+    } else {
+        ident!(&input.struct_name().to_string())
+    };
+
+    let mut entries = Vec::new();
+    let reader = match input {
         CommandInput::CommandParent { children, .. } => {
             let mut children_arms = Vec::new();
             for child in children {
-                let child_name = child.command_name().to_case(Case::Pascal);
-                let mut aliases = child.command_aliases().clone();
-                aliases.push(LitStr::new(&child.command_name().to_string(), Span::call_site()));
-
+                let child_name = child.struct_name();
+                let pattern = child.command_pattern();
                 if let CommandInput::Command { arguments, .. } = child {
                     if arguments.is_empty() {
-                        children_arms
-                            .push(quote! { #(#aliases)|* => { #parent_name::#child_name } });
+                        entries.push(quote! { #child_name });
+                        children_arms.push(quote! { #(#pattern)|* => { Self::#child_name } });
                         continue;
                     }
                 }
 
-                let child_parser = generate_parser(
-                    Some(parent_name.to_string()),
-                    position + 1,
+                let child_struct = generate_arguments(
+                    structs,
                     child,
+                    Some(parent_name.to_string()),
                     ctx_ident,
                     args_ident,
                 );
-                children_arms
-                    .push(quote! { #(#aliases)|* => { #parent_name::#child_name(#child_parser) } });
+                entries.push(quote! { #child_name(#child_struct) });
+                children_arms.push(quote! { #(#pattern)|* => {
+                    Self::#child_name(#child_struct::read_arguments(args, position + 1, ctx).await?)
+                } });
             }
 
             quote! {
@@ -167,26 +110,30 @@ fn generate_parser(
                         #(#children_arms),*
                         s => {
                             return Err(#err::UnknownSubcommand {
-                                position: #position,
+                                position: position,
                                 given: s.to_owned(),
                             });
                         },
                     }
                 } else {
                     return Err(#err::MissingSubcommand {
-                        position: #position,
+                        position: position,
                     });
                 }
             }
         },
         CommandInput::Command { arguments, .. } => {
             let mut fields = Vec::new();
-            for argument in arguments {
-                let name = LitStr::new(&argument.name.to_string(), Span::call_site());
-                let ArgumentInput { ty, .. } = &argument;
+            for (i, argument) in arguments.iter().enumerate() {
+                let i = i as u8;
+                let ArgumentInput { name: field, ty, .. } = &argument;
 
-                let name_ident = &argument.name;
                 let required = arg_opt!(argument, required).is_none();
+                entries.push(if required {
+                    quote! { pub #field: #ty }
+                } else {
+                    quote! { pub #field: Option<#ty> }
+                });
 
                 let inner_parse = quote! {
                     #ty::parse_argument(
@@ -196,39 +143,61 @@ fn generate_parser(
                         },
                     )
                     .await
-                    .map_err(|e| #err::ValueParseError { position: #position, inner: e })?
-                };
-                let parse = if required {
-                    inner_parse
-                } else {
-                    quote! { Some(#inner_parse) }
-                };
-                let err_handler = if required {
-                    quote! {
-                        return Err(#err::RequiredArgumentMissing {
-                            position: #position,
-                            name: String::from(#name),
-                        });
-                    }
-                } else {
-                    quote! { None }
+                    .map_err(|e| #err::ValueParseError { position: position + #i, inner: e })?
                 };
 
+                let (parse, err_handler) = if required {
+                    let name = metavar!(LitStr; &argument.name.to_string());
+                    (inner_parse, quote! {
+                        return Err(#err::RequiredArgumentMissing {
+                            position: position + #i,
+                            name: String::from(#name),
+                        });
+                    })
+                } else {
+                    (quote! { Some(#inner_parse) }, quote! { None })
+                };
                 fields.push(quote! {
-                    #name_ident: if let Some(arg) = #args_ident.next() {
+                    #field: if let Some(arg) = #args_ident.next() {
                         #parse
                     } else {
                         #err_handler
                     }
                 });
-                position += 1;
             }
 
             quote! {
-                #parent_name {
+                Self {
                     #(#fields),*
                 }
             }
         },
-    }
+    };
+
+    let struct_type = match input {
+        CommandInput::CommandParent { .. } => quote! { enum },
+        CommandInput::Command { .. } => quote! { struct },
+    };
+    structs.push(quote! {
+        #[derive(Clone, Debug)]
+        pub #struct_type #parent_name {
+            #(#entries),*
+        }
+
+        #[::polecen::async_trait]
+        impl ::polecen::command::CommandArguments for #parent_name {
+            async fn read_arguments<'a, I>(
+                mut args: I,
+                position: u8,
+                ctx: ::polecen::arguments::parse::ArgumentParseContext<'a>,
+            ) -> Result<Self, ::polecen::command::CommandArgumentsReadError>
+            where
+                I: Iterator<Item = &'a str> + Send
+            {
+                Ok(#reader)
+            }
+        }
+    });
+
+    parent_name
 }

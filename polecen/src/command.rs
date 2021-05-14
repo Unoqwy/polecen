@@ -11,6 +11,7 @@ where
 {
     async fn read_arguments<'a, I>(
         args: I,
+        position: u8,
         ctx: ArgumentParseContext<'a>,
     ) -> Result<Self, CommandArgumentsReadError>
     where

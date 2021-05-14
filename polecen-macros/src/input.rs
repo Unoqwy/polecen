@@ -1,5 +1,9 @@
+use convert_case::Case;
+use proc_macro2::Span;
 use syn::parse::{Parse, ParseStream};
 use syn::{braced, bracketed, parenthesized, Ident, LitInt, LitStr, Token, Type};
+
+use crate::utils::ConvertCase;
 
 macro_rules! optional_wrapped {
     ($input:ident, $wrapper:ident) => {
@@ -17,50 +21,46 @@ macro_rules! optional_wrapped {
     };
 }
 
-pub(crate) struct CommandExpandInput {
-    pub prefix: Option<Ident>,
-    pub command: CommandInput,
-}
-
-impl Parse for CommandExpandInput {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let prefix = optional_wrapped!(input, parenthesized);
-        Ok(Self { prefix, command: input.parse()? })
-    }
-}
-
 pub(crate) enum CommandInput {
-    CommandParent { name: Ident, aliases: Vec<LitStr>, children: Vec<CommandInput> },
-    Command { name: Ident, aliases: Vec<LitStr>, arguments: Vec<ArgumentInput> },
+    CommandParent { struct_name: Ident, pattern: Vec<LitStr>, children: Vec<CommandInput> },
+    Command { struct_name: Ident, pattern: Vec<LitStr>, arguments: Vec<ArgumentInput> },
 }
 
 impl CommandInput {
-    pub fn command_name(&self) -> Ident {
+    pub fn struct_name(&self) -> Ident {
         match self {
-            Self::CommandParent { name, .. } => name.clone(),
-            Self::Command { name, .. } => name.clone(),
+            Self::CommandParent { struct_name, .. } => struct_name.clone(),
+            Self::Command { struct_name, .. } => struct_name.clone(),
         }
     }
 
-    pub fn command_aliases(&self) -> Vec<LitStr> {
+    pub fn command_pattern(&self) -> Vec<LitStr> {
         match self {
-            Self::CommandParent { aliases, .. } => aliases.clone(),
-            Self::Command { aliases, .. } => aliases.clone(),
+            Self::CommandParent { pattern, .. } => pattern.clone(),
+            Self::Command { pattern, .. } => pattern.clone(),
         }
     }
 }
 
 impl Parse for CommandInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let name = input.parse()?;
-        let mut aliases = Vec::new();
+        let struct_name: Option<Ident> = optional_wrapped!(input, parenthesized);
+        let name: Ident = input.parse()?;
+        let struct_name = if let Some(struct_name) = struct_name {
+            struct_name
+        } else {
+            name.clone().to_case(Case::Pascal)
+        };
+
+        let mut pattern = Vec::new();
+        pattern.push(LitStr::new(&name.to_string(), Span::call_site()));
         while input.peek(Token![|]) {
             input.parse::<Token![|]>()?;
             if input.peek(Ident) {
                 let ident: Ident = input.parse()?;
-                aliases.push(LitStr::new(&ident.to_string(), ident.span()))
+                pattern.push(LitStr::new(&ident.to_string(), ident.span()))
             } else {
-                aliases.push(input.parse()?);
+                pattern.push(input.parse()?);
             }
         }
 
@@ -77,13 +77,13 @@ impl Parse for CommandInput {
                 .parse_terminated::<CommandInput, Token![,]>(Self::parse)?
                 .into_iter()
                 .collect();
-            Ok(Self::CommandParent { name, aliases, children })
+            Ok(Self::CommandParent { struct_name, pattern, children })
         } else {
             let arguments = content
                 .parse_terminated::<ArgumentInput, Token![;]>(ArgumentInput::parse)?
                 .into_iter()
                 .collect();
-            Ok(Self::Command { name, aliases, arguments })
+            Ok(Self::Command { struct_name, pattern, arguments })
         }
     }
 }
