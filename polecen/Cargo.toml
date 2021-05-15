@@ -12,6 +12,7 @@ build = "build.rs"
 polecen-macros = { path = "../polecen-macros", optional = true }
 
 serde = "1.0"
+serde_json = { version =  "1.0", optional = true }
 
 async-trait = "0.1"
 humantime = { version = "2.0", optional = true }
@@ -26,6 +27,7 @@ default = ["serenity_rustls", "polecen_default"]
 
 polecen_default = ["macros", "default_parsers"]
 macros = ["polecen-macros"]
+interactions = ["serenity/unstable_discord_api", "polecen-macros/interactions", "serde_json"]
 
 default_parsers = ["default_parsers_primitives", "default_parsers_models", "default_parsers_time"]
 
