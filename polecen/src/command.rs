@@ -9,13 +9,20 @@ pub trait CommandArguments
 where
     Self: Sized,
 {
-    async fn read_arguments<'a, I>(
+    async fn read_str_arguments<'a, I>(
         args: I,
         position: u8,
         ctx: ArgumentParseContext<'a>,
     ) -> Result<Self, CommandArgumentsReadError>
     where
         I: Iterator<Item = &'a str> + Send;
+
+    #[cfg(feature = "interactions")]
+    async fn read_command_interaction_data<'a>(
+        args: serenity::model::interactions::ApplicationCommandInteractionData,
+        position: u8,
+        ctx: ArgumentParseContext<'a>,
+    ) -> Result<Self, CommandArgumentsReadError>;
 }
 
 #[derive(Clone, Debug)]

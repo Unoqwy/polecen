@@ -26,6 +26,7 @@ default = ["serenity_rustls", "polecen_default"]
 
 polecen_default = ["macros", "default_parsers"]
 macros = ["polecen-macros"]
+interactions = ["serenity/unstable_discord_api", "polecen-macros/interactions"]
 
 default_parsers = ["default_parsers_primitives", "default_parsers_models", "default_parsers_time"]
 

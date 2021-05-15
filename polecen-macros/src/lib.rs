@@ -100,7 +100,7 @@ pub(crate) fn generate_arguments(
                 );
                 entries.push(quote! { #child_name(#child_struct) });
                 children_arms.push(quote! { #(#pattern)|* => {
-                    Self::#child_name(#child_struct::read_arguments(args, position + 1, ctx).await?)
+                    Self::#child_name(#child_struct::read_str_arguments(args, position + 1, ctx).await?)
                 } });
             }
 
@@ -178,15 +178,9 @@ pub(crate) fn generate_arguments(
         CommandInput::CommandParent { .. } => quote! { enum },
         CommandInput::Command { .. } => quote! { struct },
     };
-    structs.push(quote! {
-        #[derive(Clone, Debug)]
-        pub #struct_type #parent_name {
-            #(#entries),*
-        }
-
-        #[::polecen::async_trait]
-        impl ::polecen::command::CommandArguments for #parent_name {
-            async fn read_arguments<'a, I>(
+    let fns = vec![
+        quote! {
+            async fn read_str_arguments<'a, I>(
                 mut args: I,
                 position: u8,
                 ctx: ::polecen::arguments::parse::ArgumentParseContext<'a>,
@@ -196,6 +190,28 @@ pub(crate) fn generate_arguments(
             {
                 Ok(#reader)
             }
+        },
+        #[cfg(feature = "interactions")]
+        quote! {
+            async fn read_command_interaction_data<'a>(
+                args: serenity::model::interactions::ApplicationCommandInteractionData,
+                position: u8,
+                ctx: ArgumentParseContext<'a>,
+            ) -> Result<Self> {
+                unimplemented!();
+            }
+        },
+    ];
+
+    structs.push(quote! {
+        #[derive(Clone, Debug)]
+        pub #struct_type #parent_name {
+            #(#entries),*
+        }
+
+        #[::polecen::async_trait]
+        impl ::polecen::command::CommandArguments for #parent_name {
+            #(#fns)*
         }
     });
 
