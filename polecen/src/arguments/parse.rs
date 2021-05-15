@@ -17,7 +17,25 @@ impl<'a> ArgumentParseContext<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ArgumentParseRaw {
+    String(String),
+    #[cfg(feature = "interactions")]
+    InteractionData(serde_json::Value),
+}
+
+#[async_trait]
+pub trait ArgumentType
+where
+    Self: Sized,
+{
+    async fn parse_argument<'a>(
+        ctx: &ArgumentParseContext<'a>,
+        raw: ArgumentParseRaw,
+    ) -> Result<Self, ArgumentParseError>;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ArgumentParseError {
     InvalidValueType,
     InvalidValueFormat,
@@ -40,20 +58,4 @@ impl fmt::Display for ArgumentParseError {
             },
         }
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct ArgumentParseRaw {
-    pub value: String,
-}
-
-#[async_trait]
-pub trait ArgumentType
-where
-    Self: Sized,
-{
-    async fn parse_argument<'a>(
-        ctx: &ArgumentParseContext<'a>,
-        raw: ArgumentParseRaw,
-    ) -> Result<Self, ArgumentParseError>;
 }

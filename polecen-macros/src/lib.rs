@@ -51,6 +51,56 @@ pub fn expand_command_here(tokens: StdTokenStream) -> StdTokenStream {
     (quote! { #(#structs)* }).into()
 }
 
+macro_rules! subcommand_reader {
+    ($children_arms:ident, $fn_reader:literal, [$($unpack:tt)+] = [$($set:tt)+]) => {{
+        let arms: Vec<TokenStream> = $children_arms
+            .iter()
+            .map(|c| c(&ident!($fn_reader)))
+            .collect();
+        quote! {
+            if let $($unpack)+ = $($set)+ {
+                match subcommand {
+                    #(#arms),*
+                    s => {
+                        return Err(::polecen::command::CommandArgumentsReadError::UnknownSubcommand {
+                            position: position,
+                            given: s.to_owned(),
+                        });
+                    },
+                }
+            } else {
+                return Err(::polecen::command::CommandArgumentsReadError::MissingSubcommand {
+                    position: position,
+                });
+            }
+        }
+    }};
+}
+
+macro_rules! struct_reader {
+    ($fields_readers:ident, [$($unpack:tt)+] = [$($set:tt)+] -> $($parse:tt)+) => {{
+        let unpack = quote! { $($unpack)+ };
+        let set = quote! { $($set)+ };
+        let parse = quote! { $($parse)+ };
+        let fields: Vec<TokenStream> = $fields_readers
+            .iter()
+            .map(|c| c(&unpack, &set, &parse))
+            .collect();
+        quote! {
+            Self {
+                #(#fields),*
+            }
+        }
+    }}
+}
+
+#[derive(Clone, Debug)]
+struct Readers<T> {
+    str_reader: T,
+    #[cfg(feature = "interactions")]
+    interaction_reader: T,
+}
+
 /// Generate argument structures and readers.
 /// Returns ident of top-level structure (input) name.
 ///
@@ -68,8 +118,6 @@ pub(crate) fn generate_arguments(
     ctx_ident: &Ident,
     args_ident: &Ident,
 ) -> Ident {
-    let err = quote!(::polecen::command::CommandArgumentsReadError);
-
     let parent_name = if let Some(prefix) = prefix {
         ident!(MERGE prefix, input.struct_name())
     } else {
@@ -77,16 +125,18 @@ pub(crate) fn generate_arguments(
     };
 
     let mut entries = Vec::new();
-    let reader = match input {
+    let readers = match input {
         CommandInput::CommandParent { children, .. } => {
-            let mut children_arms = Vec::new();
+            let mut children_arms: Vec<Box<dyn Fn(&Ident) -> TokenStream>> = Vec::new();
             for child in children {
                 let child_name = child.struct_name();
                 let pattern = child.command_pattern();
                 if let CommandInput::Command { arguments, .. } = child {
                     if arguments.is_empty() {
                         entries.push(quote! { #child_name });
-                        children_arms.push(quote! { #(#pattern)|* => { Self::#child_name } });
+                        children_arms.push(Box::new(
+                            move |_| quote! { #(#pattern)|* => { Self::#child_name } },
+                        ));
                         continue;
                     }
                 }
@@ -99,31 +149,27 @@ pub(crate) fn generate_arguments(
                     args_ident,
                 );
                 entries.push(quote! { #child_name(#child_struct) });
-                children_arms.push(quote! { #(#pattern)|* => {
-                    Self::#child_name(#child_struct::read_str_arguments(args, position + 1, ctx).await?)
-                } });
+                children_arms.push(Box::new(move |fn_reader| {
+                    quote! { #(#pattern)|* => {
+                        Self::#child_name(#child_struct::#fn_reader(args, position + 1, ctx).await?)
+                    } }
+                }));
             }
 
-            quote! {
-                if let Some(subcommand) = #args_ident.next() {
-                    match subcommand {
-                        #(#children_arms),*
-                        s => {
-                            return Err(#err::UnknownSubcommand {
-                                position: position,
-                                given: s.to_owned(),
-                            });
-                        },
-                    }
-                } else {
-                    return Err(#err::MissingSubcommand {
-                        position: position,
-                    });
-                }
+            Readers {
+                str_reader: subcommand_reader!(children_arms, "read_str_arguments",
+                    [Some(subcommand)] = [#args_ident.next()]
+                ),
+                #[cfg(feature = "interactions")]
+                interaction_reader: subcommand_reader!(children_arms, "read_command_interaction_data",
+                    [Some(polecen::serde_json::Value::String(subcommand))] = [#args_ident.value] // FIXME; make it work
+                ),
             }
         },
         CommandInput::Command { arguments, .. } => {
-            let mut fields = Vec::new();
+            let mut fields_readers: Vec<
+                Box<dyn Fn(&TokenStream, &TokenStream, &TokenStream) -> TokenStream>,
+            > = Vec::new();
             for (i, argument) in arguments.iter().enumerate() {
                 let i = i as u8;
                 let ArgumentInput { name: field, ty, required, .. } = &argument;
@@ -135,41 +181,53 @@ pub(crate) fn generate_arguments(
                     quote! { pub #field: Option<#ty> }
                 });
 
-                let inner_parse = quote! {
-                    #ty::parse_argument(
-                        &#ctx_ident,
-                        ::polecen::arguments::parse::ArgumentParseRaw {
-                            value: arg.to_owned(),
-                        },
-                    )
-                    .await
-                    .map_err(|e| #err::ValueParseError { position: position + #i, inner: e })?
-                };
+                let inner_parse: Box<dyn Fn(&TokenStream) -> TokenStream> = Box::new(
+                    move |parser| {
+                        quote! {
+                            #ty::parse_argument(
+                                &#ctx_ident,
+                                ::polecen::arguments::parse::ArgumentParseRaw::#parser
+                            )
+                            .await
+                            .map_err(|e| ::polecen::command::CommandArgumentsReadError::ValueParseError { position: position + #i, inner: e })?
+                        }
+                    },
+                );
 
-                let (parse, err_handler) = if required {
-                    let name = metavar!(LitStr; &argument.name.to_string());
-                    (inner_parse, quote! {
-                        return Err(#err::RequiredArgumentMissing {
-                            position: position + #i,
-                            name: String::from(#name),
-                        });
-                    })
-                } else {
-                    (quote! { Some(#inner_parse) }, quote! { None })
-                };
-                fields.push(quote! {
-                    #field: if let Some(arg) = #args_ident.next() {
-                        #parse
+                let (parse, err_handler): (Box<dyn Fn(&TokenStream) -> TokenStream>, TokenStream) =
+                    if required {
+                        let name = metavar!(LitStr; &argument.name.to_string());
+                        (inner_parse, quote! {
+                            return Err(::polecen::command::CommandArgumentsReadError::RequiredArgumentMissing {
+                                position: position + #i,
+                                name: String::from(#name),
+                            });
+                        })
                     } else {
-                        #err_handler
+                        (
+                            Box::new(move |parser| {
+                                let inner_parse = inner_parse(parser);
+                                quote! { Some(#inner_parse) }
+                            }),
+                            quote! { None },
+                        )
+                    };
+                fields_readers.push(Box::new(move |unpack, set, parser| {
+                    let parse = parse(&parser);
+                    quote! {
+                        #field: if let #unpack = #set {
+                            #parse
+                        } else {
+                            #err_handler
+                        }
                     }
-                });
+                }));
             }
 
-            quote! {
-                Self {
-                    #(#fields),*
-                }
+            Readers {
+                str_reader: struct_reader!(fields_readers, [Some(arg)] = [#args_ident.next()] -> String(arg.to_owned())),
+                #[cfg(feature = "interactions")]
+                interaction_reader: quote! {}, // FIXME
             }
         },
     };
@@ -178,6 +236,10 @@ pub(crate) fn generate_arguments(
         CommandInput::CommandParent { .. } => quote! { enum },
         CommandInput::Command { .. } => quote! { struct },
     };
+
+    let Readers { str_reader, .. } = readers;
+    #[cfg(feature = "interactions")]
+    let interaction_reader = readers.interaction_reader;
     let fns = vec![
         quote! {
             async fn read_str_arguments<'a, I>(
@@ -188,7 +250,7 @@ pub(crate) fn generate_arguments(
             where
                 I: Iterator<Item = &'a str> + Send
             {
-                Ok(#reader)
+                Ok(#str_reader)
             }
         },
         #[cfg(feature = "interactions")]
@@ -198,7 +260,7 @@ pub(crate) fn generate_arguments(
                 position: u8,
                 ctx: ArgumentParseContext<'a>,
             ) -> Result<Self> {
-                unimplemented!();
+                Ok(#interaction_reader)
             }
         },
     ];

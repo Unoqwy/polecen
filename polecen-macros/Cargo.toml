@@ -11,9 +11,10 @@ repository = "https://github.com/Unoqwy/polecen"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.26"
-syn = { version = "1.0.72", features = ["full"] }
-quote = "1.0.9"
+proc-macro2 = "1.0"
+syn = { version = "1.0", features = ["full"] }
+quote = "1.0"
+
 convert_case = "0.4.0"
 
 [features]
