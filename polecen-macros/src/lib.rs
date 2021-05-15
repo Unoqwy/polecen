@@ -26,14 +26,14 @@ macro_rules! ident {
     };
 }
 
-macro_rules! arg_opt {
-    ($arg:ident, $($field:ident).+, $def:expr) => {
-        if let Some(opts) = &$arg.opts { opts.$($field).+ } else { $def }
-    };
-    ($arg:ident, $($field:ident).+) => {
-        arg_opt!($arg, $($field).+, None)
-    };
-}
+// macro_rules! arg_opt {
+//     ($arg:ident, $($field:ident).+, $def:expr) => {
+//         if let Some(opts) = &$arg.opts { opts.$($field).+ } else { $def }
+//     };
+//     ($arg:ident, $($field:ident).+) => {
+//         arg_opt!($arg, $($field).+, None)
+//     };
+// }
 
 /// Generate argument structures and reader implementations in current scope.
 ///
@@ -126,9 +126,9 @@ pub(crate) fn generate_arguments(
             let mut fields = Vec::new();
             for (i, argument) in arguments.iter().enumerate() {
                 let i = i as u8;
-                let ArgumentInput { name: field, ty, .. } = &argument;
+                let ArgumentInput { name: field, ty, required, .. } = &argument;
+                let required = *required;
 
-                let required = arg_opt!(argument, required).is_none();
                 entries.push(if required {
                     quote! { pub #field: #ty }
                 } else {

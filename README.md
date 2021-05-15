@@ -12,7 +12,6 @@ Polecen is currently in very early stages. Almost everything is subject to a ref
 - [x] Default parsers implementations
 - [x] Integration with Standard Framework
 - [ ] Usable errors
-- [ ] FromStr support?
 - [ ] Basic documentation
 
 ### Planned features
@@ -32,8 +31,9 @@ use serenity::model::guild::Member;
 
 polecen::expand_command_here!((TestCommandArgs) test => match {
     kick => {
-        target#Member "Target member";
-        reason#String [*] "Reason"; // optional argument
+        // description isn't required, and doesn't do anything yet anyway
+        target: Member, "Target member";
+        reason: Option<String>; // optional argument
     },
     version | ver | "?" => {}
 });

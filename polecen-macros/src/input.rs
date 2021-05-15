@@ -5,6 +5,10 @@ use syn::{braced, bracketed, parenthesized, Ident, LitInt, LitStr, Token, Type};
 
 use crate::utils::ConvertCase;
 
+mod kw {
+    syn::custom_keyword!(Option);
+}
+
 macro_rules! optional_wrapped {
     ($input:ident, $wrapper:ident) => {
         if let Some(opt_input) = (|| {
@@ -15,6 +19,16 @@ macro_rules! optional_wrapped {
         .ok()
         {
             Some(opt_input.parse()?)
+        } else {
+            None
+        }
+    };
+}
+
+macro_rules! optional {
+    ($input:ident) => {
+        if $input.parse::<Option<Token![,]>>()?.is_some() {
+            $input.parse()?
         } else {
             None
         }
@@ -91,6 +105,7 @@ impl Parse for CommandInput {
 pub(crate) struct ArgumentInput {
     pub name: Ident,
     pub ty: Type,
+    pub required: bool,
     pub opts: Option<ArgumentOptionsInput>,
     pub description: Option<LitStr>,
 }
@@ -98,28 +113,30 @@ pub(crate) struct ArgumentInput {
 impl Parse for ArgumentInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name = input.parse()?;
-        input.parse::<Token![#]>()?;
-        let ty: Type = input.parse()?;
+        input.parse::<Token![:]>()?;
+
+        let (ty, optional) = if input.peek(kw::Option) {
+            input.parse::<kw::Option>()?;
+            input.parse::<Token![<]>()?;
+            let ty = input.parse()?;
+            input.parse::<Token![>]>()?;
+            (ty, true)
+        } else {
+            (input.parse()?, false)
+        };
+
         let opts = optional_wrapped!(input, bracketed);
-        Ok(ArgumentInput { name, ty, opts, description: input.parse()? })
+        Ok(ArgumentInput { name, ty, required: !optional, opts, description: optional!(input) })
     }
 }
 
 pub(crate) struct ArgumentOptionsInput {
-    pub required: Option<Token![*]>,
     pub span: Option<LitInt>,
 }
 
 impl Parse for ArgumentOptionsInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let required = input.parse()?;
-        let span;
-        if input.peek(Token![:]) {
-            input.parse::<Token![:]>()?;
-            span = Some(input.parse()?);
-        } else {
-            span = None;
-        }
-        Ok(Self { required, span })
+        let span = input.parse()?;
+        Ok(Self { span })
     }
 }

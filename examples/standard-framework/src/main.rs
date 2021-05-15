@@ -21,7 +21,7 @@ impl EventHandler for Handler {
 }
 
 polecen::expand_command_here!((DateCommandArgs) date => {
-    duration#Duration [*] "Duration to add";
+    duration: Option<Duration>;
 });
 
 #[command]

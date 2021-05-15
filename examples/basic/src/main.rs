@@ -69,14 +69,14 @@ impl FromStr for Operator {
 
 polecen::expand_command_here!((PolecenCommandArgs) polecen => match {
     perform => {
-        target#Member "Target member";
-        action#String "Action to perform";
-        reason#String [*] "Reason";
+        target: Member, "Target member";
+        action: String, "Action to perform";
+        reason: Option<String>, "Reason";
     },
     calc => {
-        lhs#i32 "Integer";
-        op#String "Operator";
-        rhs#i32 "Integer";
+        lhs: i32, "Integer";
+        op: String, "Operator";
+        rhs: i32, "Integer";
     },
     version | ver | "?" => {}
 });
